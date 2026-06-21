@@ -236,6 +236,30 @@
     .leaflet-popup-content { margin: 0; width: 250px !important; }
     .leaflet-popup-tip { background: var(--azul-marino); }
 
+    .popup-uagro .foto {
+      position: relative;
+      height: 132px;
+      background: var(--azul-marino);
+      overflow: hidden;
+    }
+    .popup-uagro .foto img {
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
+      transition: transform .4s ease;
+    }
+    .popup-uagro:hover .foto img { transform: scale(1.04); }
+    /* Velo inferior para dar contraste a un posible texto sobre la foto */
+    .popup-uagro .foto::after {
+      content: ""; position: absolute; inset: 0;
+      background: linear-gradient(180deg, rgba(12,35,64,0) 55%, rgba(12,35,64,0.45) 100%);
+    }
+    .popup-uagro .foto .cat-chip {
+      position: absolute; top: 10px; left: 10px; z-index: 2;
+      font-size: 10px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;
+      color: var(--blanco); padding: 3px 9px; border-radius: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.35);
+    }
+
     .popup-uagro .cabecera {
       background: var(--azul-marino);
       color: var(--blanco);
@@ -255,6 +279,9 @@
     .popup-uagro .cuerpo .coord {
       font-size: 11px; color: var(--texto-tenue);
       border-top: 1px solid var(--gris-borde); padding-top: 8px;
+    }
+    .popup-uagro .cuerpo .coord .credito {
+      display: block; margin-top: 3px; font-size: 10px; color: #97A2B2;
     }
 
     /* Mensaje de carga */
@@ -448,6 +475,25 @@
     Restaurante: { hex: '#E4002B', icono: '◆' }   // Rojo de acento
   };
 
+  // Banner SVG institucional (data URI) usado como respaldo cuando un
+  // sitio no tiene foto o cuando la imagen remota no carga (onerror).
+  function bannerSVG(tipo) {
+    const c = COLORES[tipo] || COLORES.Atractivo;
+    const svg =
+      "<svg xmlns='http://www.w3.org/2000/svg' width='250' height='132'>" +
+        "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>" +
+          "<stop offset='0' stop-color='" + c.hex + "'/>" +
+          "<stop offset='1' stop-color='#0C2340'/>" +
+        "</linearGradient></defs>" +
+        "<rect width='250' height='132' fill='url(#g)'/>" +
+        "<text x='125' y='66' font-family='Arial,Helvetica,sans-serif' font-size='40' " +
+          "fill='#FFFFFF' text-anchor='middle'>" + c.icono + "</text>" +
+        "<text x='125' y='98' font-family='Arial,Helvetica,sans-serif' font-size='11' " +
+          "fill='#FFFFFF' opacity='0.85' text-anchor='middle'>Imagen no disponible</text>" +
+      "</svg>";
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  }
+
   // Marcador personalizado tipo "pin" con código de color por categoría.
   function crearIcono(tipo) {
     const c = COLORES[tipo] || COLORES.Atractivo;
@@ -461,17 +507,29 @@
   }
 
   // Popup con la identidad institucional de la UAGro.
+  // Muestra una foto del lugar (primera impresión). Si el sitio no tiene
+  // foto o la imagen remota falla, se sustituye por un banner institucional.
   function crearPopup(sitio) {
+    const color = (COLORES[sitio.tipo] || COLORES.Atractivo).hex;
+    const respaldo = bannerSVG(sitio.tipo);
+    const fuente = sitio.imagen ? sitio.imagen : respaldo;
+    const credito = sitio.credito
+      ? `<span class="credito">📷 ${sitio.credito}</span>` : '';
+
     return `
       <div class="popup-uagro">
+        <div class="foto">
+          <span class="cat-chip" style="background:${color}">${sitio.tipo}</span>
+          <img src="${fuente}" alt="Vista de ${sitio.nombre}" loading="lazy"
+               onerror="this.onerror=null;this.src='${respaldo}';" />
+        </div>
         <div class="cabecera">
-          <span class="tag">${sitio.tipo}</span>
           <h4>${sitio.nombre}</h4>
         </div>
         <div class="cuerpo">
           <p class="ciudad">${sitio.ciudad}, Guerrero</p>
           <p class="desc">${sitio.descripcion}</p>
-          <p class="coord">Lat: ${sitio.lat.toFixed(4)} · Lng: ${sitio.lng.toFixed(4)}</p>
+          <p class="coord">Lat: ${sitio.lat.toFixed(4)} · Lng: ${sitio.lng.toFixed(4)} ${credito}</p>
         </div>
       </div>`;
   }
@@ -512,50 +570,72 @@
       // Simulamos la latencia de red de una petición fetch().
       setTimeout(() => {
         resolve([
+          // Cada objeto incluye el campo `imagen` (URL de la foto que se
+          // muestra en el popup). Para los atractivos usamos fotos de
+          // Wikimedia Commons (licencia CC BY-SA). Para hoteles y
+          // restaurantes lo dejamos vacío: el popup mostrará un banner
+          // institucional de respaldo. Para usar una foto propia, basta
+          // con pegar su URL pública en `imagen` (idealmente con licencia
+          // de uso o de la cual tengas derechos).
+
           // ===== ACAPULCO =====
           {
             nombre: 'La Quebrada (Clavadistas)',
             tipo: 'Atractivo', ciudad: 'Acapulco',
             lat: 16.8489, lng: -99.9075,
-            descripcion: 'Icónico acantilado donde los clavadistas se lanzan al mar; espectáculo turístico tradicional del puerto.'
+            descripcion: 'Icónico acantilado donde los clavadistas se lanzan al mar; espectáculo turístico tradicional del puerto.',
+            imagen: 'https://commons.wikimedia.org/wiki/Special:FilePath/La%20Quebrada%2C%20Acapulco.jpg?width=500',
+            credito: 'Wikimedia Commons · CC BY-SA'
           },
           {
             nombre: 'Fuerte de San Diego',
             tipo: 'Atractivo', ciudad: 'Acapulco',
             lat: 16.8444, lng: -99.8919,
-            descripcion: 'Fortaleza histórica del siglo XVIII que hoy alberga el Museo Histórico de Acapulco.'
+            descripcion: 'Fortaleza histórica del siglo XVIII que hoy alberga el Museo Histórico de Acapulco.',
+            imagen: 'https://commons.wikimedia.org/wiki/Special:FilePath/Acapulco%20-%20Fuerte%20de%20San%20Diego.JPG?width=500',
+            credito: 'Wikimedia Commons · CC BY-SA'
           },
           {
             nombre: 'Hotel Boca Chica',
             tipo: 'Hotel', ciudad: 'Acapulco',
             lat: 16.8366, lng: -99.9070,
-            descripcion: 'Hotel boutique frente a la zona de Caleta, referente de la arquitectura mid-century del puerto.'
+            descripcion: 'Hotel boutique frente a la zona de Caleta, referente de la arquitectura mid-century del puerto.',
+            imagen: '',   // ← Pega aquí la URL de una foto propia/licenciada del hotel
+            credito: ''
           },
           // ===== TAXCO =====
           {
             nombre: 'Templo de Santa Prisca',
             tipo: 'Atractivo', ciudad: 'Taxco',
             lat: 18.5556, lng: -99.6053,
-            descripcion: 'Joya del barroco novohispano (churrigueresco), símbolo del pueblo mágico minero de Taxco.'
+            descripcion: 'Joya del barroco novohispano (churrigueresco), símbolo del pueblo mágico minero de Taxco.',
+            imagen: 'https://commons.wikimedia.org/wiki/Special:FilePath/Santa%20Prisca%20en%20Taxco%2C%20Guerrero.JPG?width=500',
+            credito: 'Wikimedia Commons · CC BY-SA'
           },
           {
             nombre: 'Restaurante El Adobe',
             tipo: 'Restaurante', ciudad: 'Taxco',
             lat: 18.5562, lng: -99.6048,
-            descripcion: 'Cocina tradicional guerrerense con vista a la Plaza Borda y al centro histórico.'
+            descripcion: 'Cocina tradicional guerrerense con vista a la Plaza Borda y al centro histórico.',
+            imagen: '',   // ← Pega aquí la URL de una foto propia/licenciada del restaurante
+            credito: ''
           },
           // ===== IXTAPA / ZIHUATANEJO =====
           {
             nombre: 'Playa El Palmar (Ixtapa)',
             tipo: 'Atractivo', ciudad: 'Ixtapa',
             lat: 17.6380, lng: -101.5570,
-            descripcion: 'Extensa playa frente a la zona hotelera de Ixtapa, ideal para deportes acuáticos y atardeceres.'
+            descripcion: 'Extensa playa frente a la zona hotelera de Ixtapa, ideal para deportes acuáticos y atardeceres.',
+            imagen: '',   // ← Opcional: URL de una foto libre/licenciada de la playa
+            credito: ''
           },
           {
             nombre: 'Restaurante Playa La Ropa',
             tipo: 'Restaurante', ciudad: 'Zihuatanejo',
             lat: 17.6256, lng: -101.5489,
-            descripcion: 'Marisquería a pie de playa en la bahía de Zihuatanejo, célebre por su pescado a la talla.'
+            descripcion: 'Marisquería a pie de playa en la bahía de Zihuatanejo, célebre por su pescado a la talla.',
+            imagen: '',   // ← Pega aquí la URL de una foto propia/licenciada del restaurante
+            credito: ''
           }
         ]);
       }, 600);
