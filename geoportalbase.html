@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Geoportal Turístico de Guerrero — UAGro</title>
+
+  <!-- ===================== LIBRERÍAS VÍA CDN ===================== -->
+  <!-- Leaflet (núcleo del visor de mapas) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <!-- Leaflet.markercluster (agrupamiento de marcadores) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+  />
+
+  <style>
+    /* ===================== TOKENS DE IDENTIDAD UAGro ===================== */
+    :root {
+      --azul-marino: #0C2340;   /* Primario  - PANTONE 289 C */
+      --rojo-acento: #E4002B;   /* Acento    - PANTONE 185 C */
+      --azul-secund: #002D62;   /* Secundario- PANTONE 654 C */
+      --blanco:      #FFFFFF;
+      --gris-claro:  #F4F4F4;
+      --gris-borde:  #E2E5EA;
+      --texto:       #1F2733;
+      --texto-tenue: #5A6675;
+      --sombra-suave: 0 2px 8px rgba(12, 35, 64, 0.10);
+      --sombra-media: 0 6px 20px rgba(12, 35, 64, 0.16);
+      --header-h: 64px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--texto);
+      background: var(--gris-claro);
+    }
+
+    /* ===================== HEADER INSTITUCIONAL ===================== */
+    header.geo-header {
+      height: var(--header-h);
+      background: var(--azul-marino);
+      color: var(--blanco);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 22px;
+      box-shadow: var(--sombra-media);
+      position: relative;
+      z-index: 1100;
+      border-bottom: 3px solid var(--rojo-acento);
+    }
+
+    .geo-header .escudo {
+      width: 40px;
+      height: 40px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--blanco);
+      color: var(--azul-marino);
+      display: grid;
+      place-items: center;
+      font-weight: bold;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      border: 2px solid var(--rojo-acento);
+    }
+
+    .geo-header .titulos { display: flex; flex-direction: column; line-height: 1.15; }
+    .geo-header h1 { margin: 0; font-size: 17px; font-weight: bold; letter-spacing: 0.2px; }
+    .geo-header .subtitulo { font-size: 11.5px; color: #B9C4D4; letter-spacing: 0.3px; }
+
+    .geo-header .institucion {
+      margin-left: auto;
+      font-size: 12px;
+      color: #B9C4D4;
+      text-align: right;
+      line-height: 1.3;
+    }
+    .geo-header .institucion strong { color: var(--blanco); }
+
+    /* ===================== LAYOUT PRINCIPAL ===================== */
+    .geo-main {
+      display: flex;
+      height: calc(100% - var(--header-h));
+    }
+
+    /* ----------------------- SIDEBAR ----------------------- */
+    aside.sidebar {
+      width: 320px;
+      flex: 0 0 320px;
+      background: var(--blanco);
+      border-right: 1px solid var(--gris-borde);
+      box-shadow: var(--sombra-suave);
+      overflow-y: auto;
+      z-index: 1000;
+    }
+
+    .sidebar-bloque { padding: 18px 20px; border-bottom: 1px solid var(--gris-borde); }
+
+    .sidebar-bloque h2 {
+      margin: 0 0 4px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--azul-secund);
+    }
+    .sidebar-bloque p.ayuda { margin: 0 0 14px; font-size: 12px; color: var(--texto-tenue); }
+
+    /* Buscador */
+    .campo-busqueda {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--gris-borde);
+      border-radius: 8px;
+      padding: 9px 11px;
+      background: var(--gris-claro);
+    }
+    .campo-busqueda:focus-within { border-color: var(--azul-secund); background: var(--blanco); }
+    .campo-busqueda input {
+      border: 0; outline: 0; background: transparent;
+      width: 100%; font-size: 13px; font-family: inherit; color: var(--texto);
+    }
+    .campo-busqueda .lupa { color: var(--azul-secund); font-weight: bold; }
+
+    /* Filtros (checkboxes con código de color por categoría) */
+    .filtro {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      border: 1px solid var(--gris-borde);
+      border-radius: 8px;
+      margin-bottom: 9px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+      user-select: none;
+    }
+    .filtro:hover { border-color: var(--azul-secund); background: var(--gris-claro); }
+    .filtro input { width: 16px; height: 16px; accent-color: var(--azul-secund); cursor: pointer; }
+    .filtro .punto {
+      width: 13px; height: 13px; border-radius: 50%;
+      border: 2px solid var(--blanco); box-shadow: 0 0 0 1px rgba(0,0,0,.15);
+      flex: 0 0 auto;
+    }
+    .filtro .etq { font-size: 13px; font-weight: bold; color: var(--texto); }
+    .filtro .conteo {
+      margin-left: auto; font-size: 11px; color: var(--texto-tenue);
+      background: var(--gris-claro); border-radius: 20px; padding: 2px 9px;
+    }
+
+    /* Color por categoría */
+    .c-atractivo { background: var(--azul-secund); }
+    .c-hotel     { background: var(--azul-marino); }
+    .c-restaurante { background: var(--rojo-acento); }
+
+    /* Botones */
+    .acciones { display: flex; gap: 10px; margin-top: 4px; }
+    .btn {
+      flex: 1; border: 0; border-radius: 8px; padding: 10px 12px;
+      font-family: inherit; font-size: 12.5px; font-weight: bold; cursor: pointer;
+      letter-spacing: 0.3px; transition: filter .15s, transform .05s;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primario { background: var(--azul-marino); color: var(--blanco); }
+    .btn-primario:hover { filter: brightness(1.15); }
+    .btn-acento { background: var(--rojo-acento); color: var(--blanco); }
+    .btn-acento:hover { filter: brightness(1.08); }
+
+    /* Tarjeta de estado / resumen */
+    .resumen {
+      background: var(--azul-secund);
+      color: var(--blanco);
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .resumen .num { font-size: 30px; font-weight: bold; line-height: 1; }
+    .resumen .lbl { font-size: 12px; color: #C9D4E6; }
+
+    /* Pie del sidebar */
+    .sidebar-pie { padding: 16px 20px; font-size: 11px; color: var(--texto-tenue); line-height: 1.5; }
+    .sidebar-pie strong { color: var(--azul-secund); }
+
+    /* ----------------------- ÁREA DEL MAPA ----------------------- */
+    .mapa-wrap { position: relative; flex: 1 1 auto; }
+    #mapa { position: absolute; inset: 0; }
+
+    /* Leyenda flotante sobre el mapa */
+    .leyenda {
+      position: absolute;
+      bottom: 22px; left: 12px;
+      background: var(--blanco);
+      border-radius: 10px;
+      box-shadow: var(--sombra-media);
+      padding: 12px 14px;
+      z-index: 600;
+      font-size: 12px;
+    }
+    .leyenda h3 {
+      margin: 0 0 8px; font-size: 11px; text-transform: uppercase;
+      letter-spacing: 0.6px; color: var(--azul-secund);
+    }
+    .leyenda .fila { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .leyenda .fila:last-child { margin-bottom: 0; }
+    .leyenda .punto { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; }
+
+    /* ===================== MARCADORES PERSONALIZADOS ===================== */
+    .pin {
+      width: 26px; height: 26px; border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      border: 2px solid var(--blanco);
+      box-shadow: 0 2px 5px rgba(0,0,0,.4);
+      display: grid; place-items: center;
+    }
+    .pin span { transform: rotate(45deg); color: var(--blanco); font-size: 12px; font-weight: bold; }
+
+    /* ===================== POPUP PERSONALIZADO UAGro ===================== */
+    .leaflet-popup-content-wrapper { border-radius: 12px; padding: 0; overflow: hidden; box-shadow: var(--sombra-media); }
+    .leaflet-popup-content { margin: 0; width: 250px !important; }
+    .leaflet-popup-tip { background: var(--azul-marino); }
+
+    .popup-uagro .cabecera {
+      background: var(--azul-marino);
+      color: var(--blanco);
+      padding: 11px 14px;
+      border-bottom: 3px solid var(--rojo-acento);
+    }
+    .popup-uagro .cabecera .tag {
+      display: inline-block; font-size: 10px; font-weight: bold;
+      letter-spacing: 0.5px; text-transform: uppercase;
+      background: var(--rojo-acento); color: var(--blanco);
+      padding: 2px 8px; border-radius: 20px; margin-bottom: 6px;
+    }
+    .popup-uagro .cabecera h4 { margin: 0; font-size: 15px; line-height: 1.25; }
+    .popup-uagro .cuerpo { padding: 12px 14px; background: var(--blanco); }
+    .popup-uagro .cuerpo .ciudad { font-size: 12px; color: var(--azul-secund); font-weight: bold; margin: 0 0 6px; }
+    .popup-uagro .cuerpo .desc { font-size: 12.5px; color: var(--texto); margin: 0 0 10px; line-height: 1.45; }
+    .popup-uagro .cuerpo .coord {
+      font-size: 11px; color: var(--texto-tenue);
+      border-top: 1px solid var(--gris-borde); padding-top: 8px;
+    }
+
+    /* Mensaje de carga */
+    .cargando {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      background: var(--azul-marino); color: var(--blanco);
+      padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold;
+      box-shadow: var(--sombra-media); z-index: 700;
+    }
+
+    /* ===================== RESPONSIVE ===================== */
+    @media (max-width: 820px) {
+      .geo-main { flex-direction: column; }
+      aside.sidebar { width: 100%; flex: 0 0 auto; max-height: 45%; }
+      .geo-header .institucion { display: none; }
+    }
+
+    /* Accesibilidad: foco visible */
+    .btn:focus-visible,
+    .filtro:focus-within,
+    .campo-busqueda input:focus-visible { outline: 2px solid var(--rojo-acento); outline-offset: 2px; }
+  </style>
+</head>
+
+<body>
+  <!-- ===================== HEADER ===================== -->
+  <header class="geo-header">
+    <div class="escudo">UAGro</div>
+    <div class="titulos">
+      <h1>Geoportal Turístico de Guerrero — UAGro</h1>
+      <span class="subtitulo">Visor cartográfico interactivo · Datos base INEGI / DENUE</span>
+    </div>
+    <div class="institucion">
+      <strong>Universidad Autónoma de Guerrero</strong><br />
+      Práctica de Sistemas de Información Geográfica
+    </div>
+  </header>
+
+  <!-- ===================== CUERPO ===================== -->
+  <div class="geo-main">
+
+    <!-- ----------------------- SIDEBAR ----------------------- -->
+    <aside class="sidebar">
+      <div class="sidebar-bloque">
+        <h2>Búsqueda</h2>
+        <p class="ayuda">Filtra atractivos por nombre o ciudad.</p>
+        <div class="campo-busqueda">
+          <span class="lupa">⌕</span>
+          <input id="buscador" type="text" placeholder="Ej. Quebrada, Taxco, hotel…" aria-label="Buscar atractivos" />
+        </div>
+      </div>
+
+      <div class="sidebar-bloque">
+        <h2>Categorías</h2>
+        <p class="ayuda">Activa o desactiva capas temáticas del DENUE.</p>
+
+        <label class="filtro">
+          <input type="checkbox" data-tipo="Atractivo" checked />
+          <span class="punto c-atractivo"></span>
+          <span class="etq">Atractivos turísticos</span>
+          <span class="conteo" data-conteo="Atractivo">0</span>
+        </label>
+
+        <label class="filtro">
+          <input type="checkbox" data-tipo="Hotel" checked />
+          <span class="punto c-hotel"></span>
+          <span class="etq">Hoteles</span>
+          <span class="conteo" data-conteo="Hotel">0</span>
+        </label>
+
+        <label class="filtro">
+          <input type="checkbox" data-tipo="Restaurante" checked />
+          <span class="punto c-restaurante"></span>
+          <span class="etq">Restaurantes</span>
+          <span class="conteo" data-conteo="Restaurante">0</span>
+        </label>
+
+        <div class="acciones">
+          <button class="btn btn-primario" id="btn-todos">Mostrar todo</button>
+          <button class="btn btn-acento" id="btn-centrar">Centrar mapa</button>
+        </div>
+      </div>
+
+      <div class="sidebar-bloque">
+        <h2>Resultados</h2>
+        <div class="resumen">
+          <div class="num" id="total-visibles">0</div>
+          <div>
+            <div class="lbl">sitios visibles</div>
+            <div class="lbl" id="estado-fuente">Fuente: simulación DENUE</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-pie">
+        Cartografía base: <strong>WMS INEGI</strong>. Puntos de interés: <strong>DENUE (INEGI)</strong>.
+        Proyecto académico con fines didácticos — Lic. en SIG, UAGro.
+      </div>
+    </aside>
+
+    <!-- ----------------------- MAPA ----------------------- -->
+    <div class="mapa-wrap">
+      <div id="mapa"></div>
+
+      <div class="leyenda" aria-label="Leyenda del mapa">
+        <h3>Simbología</h3>
+        <div class="fila"><span class="punto c-atractivo"></span> Atractivo turístico</div>
+        <div class="fila"><span class="punto c-hotel"></span> Hotel</div>
+        <div class="fila"><span class="punto c-restaurante"></span> Restaurante</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== SCRIPTS ===================== -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <script>
+  /* ============================================================
+     1) INICIALIZACIÓN DEL MAPA — centrado en el Estado de Guerrero
+     ============================================================ */
+  const mapa = L.map('mapa', {
+    center: [17.6, -100.0],   // Centro aproximado del Estado de Guerrero
+    zoom: 8,
+    zoomControl: true
+  });
+
+  /* ============================================================
+     2) CAPAS BASE
+     ------------------------------------------------------------
+     2.a) CAPA OFICIAL WMS DEL INEGI (mapa base / marco geoestadístico)
+
+     La URL proporcionada ('https://inegi.org.mx?') es un marcador de
+     posición. Para producción reemplázala por el endpoint WMS real
+     del servicio cartográfico del INEGI y ajusta el parámetro `layers`
+     con el identificador estándar (p. ej. la capa del Marco
+     Geoestadístico Nacional o la cartografía base que requieras).
+
+         const wmsURL = 'https://gaia.inegi.org.mx/........../wms?';
+         layers: 'IDENTIFICADOR_DE_CAPA_INEGI'
+     ============================================================ */
+  const inegiWMS = L.tileLayer.wms('https://inegi.org.mx?', {
+    layers: 'marco_geoestadistico',   // ← Reemplazar por el identificador real de la capa INEGI
+    format: 'image/png',
+    transparent: false,
+    version: '1.3.0',
+    attribution: 'Mapa base © INEGI — Instituto Nacional de Estadística y Geografía'
+  });
+
+  /* 2.b) CAPA DE RESPALDO (OpenStreetMap)
+     Garantiza que el visor renderice geografía aunque el endpoint WMS
+     del INEGI aún sea el marcador de posición. En cuanto configures la
+     URL/capa real del INEGI, puedes hacerla base por defecto cambiando
+     cuál `addTo(mapa)` se ejecuta abajo. */
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© Colaboradores de OpenStreetMap'
+  });
+
+  // Activamos la capa INEGI por defecto y dejamos OSM por debajo como respaldo visible.
+  osm.addTo(mapa);        // base de respaldo (se ve si el WMS no responde)
+  inegiWMS.addTo(mapa);   // capa oficial INEGI activada por defecto
+
+  // Control para alternar entre la capa oficial INEGI y el respaldo OSM.
+  L.control.layers(
+    { 'Mapa base INEGI (WMS)': inegiWMS, 'OpenStreetMap (respaldo)': osm },
+    null,
+    { collapsed: true, position: 'topright' }
+  ).addTo(mapa);
+
+  /* ============================================================
+     3) GRUPO DE MARKERCLUSTER
+     ============================================================ */
+  const clusterTuristico = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 50,
+    spiderfyOnMaxZoom: true
+  });
+  mapa.addLayer(clusterTuristico);
+
+  /* ============================================================
+     Utilidades de presentación
+     ============================================================ */
+  const COLORES = {
+    Atractivo:   { hex: '#002D62', icono: '★' },  // Azul secundario
+    Hotel:       { hex: '#0C2340', icono: 'H' },  // Azul marino
+    Restaurante: { hex: '#E4002B', icono: '◆' }   // Rojo de acento
+  };
+
+  // Marcador personalizado tipo "pin" con código de color por categoría.
+  function crearIcono(tipo) {
+    const c = COLORES[tipo] || COLORES.Atractivo;
+    return L.divIcon({
+      className: '',
+      html: `<div class="pin" style="background:${c.hex}"><span>${c.icono}</span></div>`,
+      iconSize: [26, 26],
+      iconAnchor: [13, 26],
+      popupAnchor: [0, -24]
+    });
+  }
+
+  // Popup con la identidad institucional de la UAGro.
+  function crearPopup(sitio) {
+    return `
+      <div class="popup-uagro">
+        <div class="cabecera">
+          <span class="tag">${sitio.tipo}</span>
+          <h4>${sitio.nombre}</h4>
+        </div>
+        <div class="cuerpo">
+          <p class="ciudad">${sitio.ciudad}, Guerrero</p>
+          <p class="desc">${sitio.descripcion}</p>
+          <p class="coord">Lat: ${sitio.lat.toFixed(4)} · Lng: ${sitio.lng.toFixed(4)}</p>
+        </div>
+      </div>`;
+  }
+
+  /* ============================================================
+     4) cargarDatosDENUE() — Conexión (simulada) a la API del DENUE
+     ------------------------------------------------------------
+     El DENUE (Directorio Estadístico Nacional de Unidades Económicas)
+     del INEGI permite consultar unidades económicas por entidad,
+     actividad, coordenadas, etc.
+
+     === CÓMO PASAR A PRODUCCIÓN ===
+     1. Solicita tu TOKEN de desarrollador del INEGI en:
+        https://www.inegi.org.mx/app/api/denue/
+     2. Sustituye el bloque de simulación por una petición real, p. ej.
+        consulta por área geográfica (Buscar por coordenadas + radio):
+
+          const TOKEN = 'TU_TOKEN_DEL_INEGI';   // ← coloca aquí tu token
+          // Endpoint de ejemplo (Buscar): latitud, longitud, metros, token
+          const url =
+            `https://www.inegi.org.mx/app/api/denue/v1/consulta/Buscar/` +
+            `hoteles/17.6,-100.0/50000/${TOKEN}`;
+          // Para filtrar por actividad usa los códigos SCIAN:
+          //   72111* Hoteles  ·  7225*  Restaurantes
+          const resp = await fetch(url);
+          const data = await resp.json();   // arreglo de unidades económicas
+          // Mapea cada elemento a { nombre, tipo, ciudad, lat, lng, descripcion }
+          // usando campos como data[i].Nombre, data[i].Latitud, data[i].Longitud…
+
+     Por ahora, la función resuelve con datos simulados (mock) para que
+     la práctica corra sin token ni conexión.
+     ============================================================ */
+  async function cargarDatosDENUE() {
+    mostrarCargando(true);
+
+    // --- INICIO SIMULACIÓN (reemplazar por fetch real al DENUE) ---
+    const datosSimulados = await new Promise((resolve) => {
+      // Simulamos la latencia de red de una petición fetch().
+      setTimeout(() => {
+        resolve([
+          // ===== ACAPULCO =====
+          {
+            nombre: 'La Quebrada (Clavadistas)',
+            tipo: 'Atractivo', ciudad: 'Acapulco',
+            lat: 16.8489, lng: -99.9075,
+            descripcion: 'Icónico acantilado donde los clavadistas se lanzan al mar; espectáculo turístico tradicional del puerto.'
+          },
+          {
+            nombre: 'Fuerte de San Diego',
+            tipo: 'Atractivo', ciudad: 'Acapulco',
+            lat: 16.8444, lng: -99.8919,
+            descripcion: 'Fortaleza histórica del siglo XVIII que hoy alberga el Museo Histórico de Acapulco.'
+          },
+          {
+            nombre: 'Hotel Boca Chica',
+            tipo: 'Hotel', ciudad: 'Acapulco',
+            lat: 16.8366, lng: -99.9070,
+            descripcion: 'Hotel boutique frente a la zona de Caleta, referente de la arquitectura mid-century del puerto.'
+          },
+          // ===== TAXCO =====
+          {
+            nombre: 'Templo de Santa Prisca',
+            tipo: 'Atractivo', ciudad: 'Taxco',
+            lat: 18.5556, lng: -99.6053,
+            descripcion: 'Joya del barroco novohispano (churrigueresco), símbolo del pueblo mágico minero de Taxco.'
+          },
+          {
+            nombre: 'Restaurante El Adobe',
+            tipo: 'Restaurante', ciudad: 'Taxco',
+            lat: 18.5562, lng: -99.6048,
+            descripcion: 'Cocina tradicional guerrerense con vista a la Plaza Borda y al centro histórico.'
+          },
+          // ===== IXTAPA / ZIHUATANEJO =====
+          {
+            nombre: 'Playa El Palmar (Ixtapa)',
+            tipo: 'Atractivo', ciudad: 'Ixtapa',
+            lat: 17.6380, lng: -101.5570,
+            descripcion: 'Extensa playa frente a la zona hotelera de Ixtapa, ideal para deportes acuáticos y atardeceres.'
+          },
+          {
+            nombre: 'Restaurante Playa La Ropa',
+            tipo: 'Restaurante', ciudad: 'Zihuatanejo',
+            lat: 17.6256, lng: -101.5489,
+            descripcion: 'Marisquería a pie de playa en la bahía de Zihuatanejo, célebre por su pescado a la talla.'
+          }
+        ]);
+      }, 600);
+    });
+    // --- FIN SIMULACIÓN ---
+
+    // Carga de los datos directamente dentro del grupo MarkerCluster.
+    todosLosSitios = datosSimulados;
+    construirMarcadores(todosLosSitios);
+    actualizarConteos(todosLosSitios);
+    aplicarFiltros();
+
+    document.getElementById('estado-fuente').textContent =
+      'Fuente: simulación DENUE (' + datosSimulados.length + ' registros)';
+    mostrarCargando(false);
+  }
+
+  /* ============================================================
+     Estado en memoria y renderizado de marcadores
+     ============================================================ */
+  let todosLosSitios = [];
+  let marcadores = [];   // { marker, sitio }
+
+  function construirMarcadores(sitios) {
+    clusterTuristico.clearLayers();
+    marcadores = sitios.map((sitio) => {
+      const marker = L.marker([sitio.lat, sitio.lng], { icon: crearIcono(sitio.tipo) });
+      marker.bindPopup(crearPopup(sitio), { closeButton: true, autoPan: true });
+      return { marker, sitio };
+    });
+  }
+
+  /* ============================================================
+     Filtros: categorías (checkbox) + búsqueda por texto
+     ============================================================ */
+  function aplicarFiltros() {
+    const texto = document.getElementById('buscador').value.trim().toLowerCase();
+    const tiposActivos = Array.from(
+      document.querySelectorAll('.filtro input[type="checkbox"]')
+    ).filter((c) => c.checked).map((c) => c.dataset.tipo);
+
+    clusterTuristico.clearLayers();
+    let visibles = 0;
+
+    marcadores.forEach(({ marker, sitio }) => {
+      const coincideTipo = tiposActivos.includes(sitio.tipo);
+      const coincideTexto =
+        !texto ||
+        sitio.nombre.toLowerCase().includes(texto) ||
+        sitio.ciudad.toLowerCase().includes(texto) ||
+        sitio.tipo.toLowerCase().includes(texto);
+
+      if (coincideTipo && coincideTexto) {
+        clusterTuristico.addLayer(marker);
+        visibles++;
+      }
+    });
+
+    document.getElementById('total-visibles').textContent = visibles;
+  }
+
+  function actualizarConteos(sitios) {
+    const conteo = { Atractivo: 0, Hotel: 0, Restaurante: 0 };
+    sitios.forEach((s) => { conteo[s.tipo] = (conteo[s.tipo] || 0) + 1; });
+    document.querySelectorAll('[data-conteo]').forEach((el) => {
+      el.textContent = conteo[el.dataset.conteo] || 0;
+    });
+  }
+
+  /* ============================================================
+     Interacciones de la interfaz
+     ============================================================ */
+  document.querySelectorAll('.filtro input[type="checkbox"]')
+    .forEach((c) => c.addEventListener('change', aplicarFiltros));
+
+  document.getElementById('buscador').addEventListener('input', aplicarFiltros);
+
+  document.getElementById('btn-todos').addEventListener('click', () => {
+    document.querySelectorAll('.filtro input[type="checkbox"]').forEach((c) => (c.checked = true));
+    document.getElementById('buscador').value = '';
+    aplicarFiltros();
+  });
+
+  document.getElementById('btn-centrar').addEventListener('click', () => {
+    mapa.setView([17.6, -100.0], 8);
+  });
+
+  // Indicador de carga sobre el mapa.
+  function mostrarCargando(activo) {
+    let el = document.getElementById('cargando');
+    if (activo) {
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'cargando';
+        el.className = 'cargando';
+        el.textContent = 'Consultando DENUE…';
+        document.querySelector('.mapa-wrap').appendChild(el);
+      }
+    } else if (el) {
+      el.remove();
+    }
+  }
+
+  /* ============================================================
+     Arranque
+     ============================================================ */
+  cargarDatosDENUE();
+  </script>
+</body>
+</html>
